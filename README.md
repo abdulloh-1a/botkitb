@@ -159,6 +159,11 @@ tasdiqlang. Render'ni qayta deploy qilib, ma'lumot saqlanganligini tekshiring.
 - `TelegramForbiddenError: ... bot was blocked by the user` — biror foydalanuvchi botni
   bloklagan. Endi traceback emas, oddiy `WARNING` chiqadi va bot ishlayveradi.
   Telegram'da bot chati → **Unblock / Blokdan chiqarish** → `/start`.
+- `TelegramConflictError: terminated by other getUpdates request` — **bir vaqtda ikki bot
+  polling qilayapti** (masalan, eski Render xizmati + yangisi, yoki mahalliy bot).
+  Aiogram qayta urinadi, lekin sababni yo'q qilish kerak: Render Dashboard'da faqat **bitta**
+  xizmat qoldiring, qolganini **Delete** qiling va mahalliy botni to'xtating.
+  Deploy paytida bir necha soniya davom etadigan conflict odatiy hol — o'zi tiklanadi.
 - `DATABASE_URL yo'q: ma'lumotlar vaqtinchalik SQLite faylida...` — `DATABASE_URL`
   kiritilmagan. Bepul Render'da arizalar restart'da yo'qoladi. 1-qadamga qayting.
 - `No open ports detected` — `ENABLE_HEALTH_SERVER` yo'q yoki Health Check Path
