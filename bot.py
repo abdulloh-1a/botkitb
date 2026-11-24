@@ -15,7 +15,8 @@ from logging.handlers import RotatingFileHandler
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, BotCommandScopeDefault
+from aiogram.exceptions import TelegramForbiddenError
+from aiogram.types import BotCommand, BotCommandScopeDefault, ErrorEvent
 
 from config import (
     BOT_TOKEN,
@@ -53,6 +54,28 @@ def setup_logging() -> None:
         logger_root.addHandler(file_handler)
 
 
+async def handle_errors(event: ErrorEvent) -> bool:
+    """Xatolarni toza loglaydi: bloklagan foydalanuvchi uchun traceback yozmaydi."""
+    update = event.update
+    if update.message:
+        actor = update.message.from_user.id
+    elif update.callback_query:
+        actor = update.callback_query.from_user.id
+    elif update.my_chat_member:
+        actor = update.my_chat_member.from_user.id
+    else:
+        actor = "noma'lum"
+
+    exception = event.exception
+    if isinstance(exception, TelegramForbiddenError):
+        logger.warning(
+            "Foydalanuvchi %s botni bloklagan yoki chat yopiq: %s", actor, exception
+        )
+    else:
+        logger.error("Handler xatosi (user=%s): %s", actor, exception, exc_info=exception)
+    return True  # xatolik aiogram tomonidan qayta ko'tarilmaydi
+
+
 async def main() -> None:
     setup_logging()
     if PLACEHOLDER_MODE:
@@ -76,6 +99,7 @@ async def main() -> None:
     dp.include_router(statistics.router)
     dp.include_router(competition.router)
     dp.include_router(fallback.router)  # oxirida: qolgan barcha tugmalarni loglaydi
+    dp.errors.register(handle_errors)
 
     await bot.set_my_commands(
         [

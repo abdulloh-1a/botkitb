@@ -87,6 +87,20 @@ va FSM holatlari redeploy/restart'larda yo'qolmaydi.
 > ⚠️ Render'da bot ishga tushganda **mahalliy botni to'xtating** (`pkill -f "python bot.py"`),
 > aks holda bir token bilan ikki jarayon polling qilib, xatolik beradi.
 
+### Logdagi tez-tez uchraydigan xabarlar
+
+- `TelegramForbiddenError: Forbidden: bot was blocked by the user` — **biror foydalanuvchi
+  botni bloklagan**. Bot unga xabar yubora olmaydi, lekin ishlashda davom etadi (xato endi
+  `WARNING` sifatida yoziladi, traceback chiqmaydi). Hal qilish: Telegram'da bot bilan chatni
+  ochib, **Unblock / Blokdan chiqarish** tugmasini bosing va `/start` yuboring.
+  Super admin bloklagan bo'lsa, unga ariza bildirishnomalari ham kelmaydi.
+- `No open ports detected ... create a background worker instead` — xizmat **Web Service**
+  sifatida yaratilgan. Bot HTTP port ochmaydi, shuning uchun Render port qidiraveradi.
+  To'g'risi: **Background Worker** (Start Command yana `python bot.py`). Bot ishledi, lekin
+  port skanerlash ogohlantirishlari chiqavermasligi uchun xizmat turini almashtiring.
+- `PLACEHOLDER rejimi` — Render'da `BOT_TOKEN` yoki `SUPER_ADMIN_ID` to'ldirilmagan.
+  **Environment** bo'limida kiriting.
+
 > ❌ **Har 5 daqiqada qayta deploy qilish kerak emas.** Background Worker doimiy ishlaydi,
 > jarayon o'chib qolsa Render o'zi qayta ishga tushuradi. Bepul Web Service'ni uxlamaslik
 > uchun ping qilish ham SQLite ni saqlab qolmaydi — fayl tizimi vaqtinchalik. Faqat yuqoridagi
