@@ -1,0 +1,11 @@
+{
+  "name": "book-competition-bot",
+  "private": true,
+  "scripts": {
+    "build": "python3 -m compileall -q -x '\\.venv' ."
+  },
+  "dependencies": {
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9"
+  }
+}

@@ -4,3 +4,7 @@ __pycache__/
 *.log
 data/
 .env
+.env.local
+.env.*
+.neon
+node_modules/

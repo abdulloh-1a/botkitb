@@ -126,6 +126,16 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_actions_admin ON admin_actions(admin_id);
                 """
             )
+            if IS_POSTGRES:
+                # Eski sxemada INTEGER bo'lgan Telegram ID ustunlarini kengaytiramiz.
+                for statement in (
+                    "ALTER TABLE applications ALTER COLUMN user_id TYPE BIGINT",
+                    "ALTER TABLE applications ALTER COLUMN reviewed_by TYPE BIGINT",
+                    "ALTER TABLE admins ALTER COLUMN user_id TYPE BIGINT",
+                    "ALTER TABLE admins ALTER COLUMN added_by TYPE BIGINT",
+                    "ALTER TABLE admin_actions ALTER COLUMN admin_id TYPE BIGINT",
+                ):
+                    await db.execute(statement)
             await db.commit()
         logger.info("Ma'lumotlar bazasi tayyor: %s", location(self.path))
 

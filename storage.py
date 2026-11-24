@@ -38,6 +38,12 @@ class PersistentStorage(BaseStorage):
                        PRIMARY KEY (bot_id, chat_id, user_id)
                    )"""
             )
+            if IS_POSTGRES:
+                # Telegram bot/chat/user ID'lari int32 dan katta bo'lishi mumkin.
+                for column in ("bot_id", "chat_id", "user_id"):
+                    await db.execute(
+                        f"ALTER TABLE fsm_states ALTER COLUMN {column} TYPE BIGINT"
+                    )
             await db.commit()
 
     @staticmethod

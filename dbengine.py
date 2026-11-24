@@ -115,6 +115,18 @@ class _Connection:
             statement = statement.replace(
                 "INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY"
             )
+            # Telegram user/chat ID'lari int32 ga sig'maydi (masalan 9046078440).
+            for column in (
+                "user_id",
+                "chat_id",
+                "bot_id",
+                "admin_id",
+                "reviewed_by",
+                "added_by",
+            ):
+                statement = statement.replace(
+                    f"{column} INTEGER", f"{column} BIGINT"
+                )
             await self._conn.execute(statement)
 
     async def commit(self) -> None:
