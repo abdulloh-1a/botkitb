@@ -1,0 +1,24 @@
+name: Render deploy hook
+
+# Render Dashboard -> xizmat -> Settings -> Deploy Hooks -> Create Deploy Hook
+# chiqqan URL ni RENDER_DEPLOY_HOOK_URL sekreti sifatida qo'shing.
+# Shundan keyin main ga har bir push avtomatik yangi deploy boshlaydi.
+# Sekret bo'lmasa workflow hech narsa qilmaydi (xato emas).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL sekreti yo'q -> deploy hook o'tkazib yuborildi."
+            exit 0
+          fi
+          curl -fsS --max-time 60 -X POST "$HOOK" && echo "Deploy hook ishga tushirildi"

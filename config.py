@@ -39,11 +39,18 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 LOG_FILE: Path = Path(os.getenv("LOG_FILE", str(BASE_DIR / "bot.log")))
 # Render kabi platformalarda fayl tizimi vaqtinchalik — faqat stdout ga yozamiz.
 ENABLE_FILE_LOG: bool = _get_bool("ENABLE_FILE_LOG", True)
-# Render Web Service port ochishni talab qiladi. Render `PORT` ni o'zi beradi,
-# shuning uchun health server avtomatik yoqiladi (qo'lda o'chirish uchun false).
+# Render Web Service port ochishni talab qiladi. Render `PORT` va `RENDER` ni o'zi
+# beradi, shuning uchun health server avtomatik yoqiladi (faqat `false` qilib o'chiriladi).
 # Bepul rejimda uxlab qolmasligi uchun GitHub Actions har 5 daqiqada /health ni ping qiladi.
+IS_RENDER: bool = bool(
+    os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID") or os.getenv("PORT")
+)
 PORT: int = _get_int("PORT", 8080)
-ENABLE_HEALTH_SERVER: bool = _get_bool("ENABLE_HEALTH_SERVER", bool(os.getenv("PORT")))
+ENABLE_HEALTH_SERVER: bool = _get_bool("ENABLE_HEALTH_SERVER", IS_RENDER)
+
+# Logda qaysi kod ishlab turganini darhol ko'rish uchun versiya belgisi.
+# Render logida "Bot versiyasi: ..." qatori shu qiymatni ko'rsatadi.
+APP_VERSION = "2026.11.25-2"
 BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "0.05"))
 
 if not BOT_TOKEN:

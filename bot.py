@@ -16,15 +16,17 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramForbiddenError
+from aiogram.exceptions import TelegramConflictError, TelegramForbiddenError
 from aiogram.types import BotCommand, BotCommandScopeDefault, ErrorEvent
 
 from config import (
+    APP_VERSION,
     BOT_TOKEN,
     DATABASE_PATH,
     DATABASE_URL,
     ENABLE_FILE_LOG,
     ENABLE_HEALTH_SERVER,
+    IS_RENDER,
     LOG_FILE,
     LOG_LEVEL,
     PLACEHOLDER_MODE,
@@ -75,6 +77,12 @@ async def handle_errors(event: ErrorEvent) -> bool:
         logger.warning(
             "Foydalanuvchi %s botni bloklagan yoki chat yopiq: %s", actor, exception
         )
+    elif isinstance(exception, TelegramConflictError):
+        logger.warning(
+            "Telegram conflict: yana bir instans shu token bilan polling qilayapti. "
+            "Render'da faqat bitta xizmat qoldiring, mahalliy botni to'xtating. %s",
+            exception,
+        )
     else:
         logger.error("Handler xatosi (user=%s): %s", actor, exception, exc_info=exception)
     return True  # xatolik aiogram tomonidan qayta ko'tarilmaydi
@@ -101,6 +109,14 @@ async def start_health_server() -> web.AppRunner | None:
 
 async def main() -> None:
     setup_logging()
+    # Logning birinchi qatori qaysi kod ishlab turganini aniqlab beradi.
+    logger.info(
+        "Bot versiyasi: %s | Render: %s | Health: %s | Port: %s",
+        APP_VERSION,
+        IS_RENDER,
+        ENABLE_HEALTH_SERVER,
+        PORT,
+    )
     if PLACEHOLDER_MODE:
         logger.warning(
             "PLACEHOLDER rejimi: .env faylida haqiqiy BOT_TOKEN va SUPER_ADMIN_ID ni "
@@ -113,44 +129,49 @@ async def main() -> None:
             "DATABASE_URL ni Environment'ga qo'shing."
         )
 
-    db_target = DATABASE_URL or DATABASE_PATH
-    db = Database(db_target)
-    await db.init()
-    storage = PersistentStorage(db_target)
-    await storage.init()
-
-    bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher(storage=storage)
-    dp["db"] = db  # handler va filtrlarga dependency injection orqali beriladi
-
-    dp.include_router(start.router)
-    dp.include_router(application.router)
-    dp.include_router(admin.router)
-    dp.include_router(statistics.router)
-    dp.include_router(competition.router)
-    dp.include_router(fallback.router)  # oxirida: qolgan barcha tugmalarni loglaydi
-    dp.errors.register(handle_errors)
-
-    await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Botni boshlash"),
-            BotCommand(command="apply", description="Ariza topshirish"),
-            BotCommand(command="admin", description="Admin paneli"),
-            BotCommand(command="competition", description="Musobaqa ma'lumoti"),
-            BotCommand(command="help", description="Yordam"),
-        ],
-        scope=BotCommandScopeDefault(),
-    )
-
-    logger.info("Bot ishga tushdi. Baza: %s", db_target)
+    # Render portni darhol ko'rishi uchun health server eng avval ochiladi.
+    # Aks holda "No open ports detected" chiqib, yangi instans o'chiriladi va
+    # eski instans bilan ikki polling sodir bo'ladi (TelegramConflictError).
     health_runner = await start_health_server()
+    bot: Bot | None = None
     try:
+        db_target = DATABASE_URL or DATABASE_PATH
+        db = Database(db_target)
+        await db.init()
+        storage = PersistentStorage(db_target)
+        await storage.init()
+
+        bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+        dp = Dispatcher(storage=storage)
+        dp["db"] = db  # handler va filtrlarga dependency injection orqali beriladi
+
+        dp.include_router(start.router)
+        dp.include_router(application.router)
+        dp.include_router(admin.router)
+        dp.include_router(statistics.router)
+        dp.include_router(competition.router)
+        dp.include_router(fallback.router)  # oxirida: qolgan barcha tugmalarni loglaydi
+        dp.errors.register(handle_errors)
+
+        await bot.set_my_commands(
+            [
+                BotCommand(command="start", description="Botni boshlash"),
+                BotCommand(command="apply", description="Ariza topshirish"),
+                BotCommand(command="admin", description="Admin paneli"),
+                BotCommand(command="competition", description="Musobaqa ma'lumoti"),
+                BotCommand(command="help", description="Yordam"),
+            ],
+            scope=BotCommandScopeDefault(),
+        )
+
+        logger.info("Bot ishga tushdi. Baza: %s", db_target)
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as exc:  # noqa: BLE001 - xatolik log faylga yoziladi
         logger.exception("Bot ishlamay qoldi: %s", exc)
         raise
     finally:
-        await bot.session.close()
+        if bot is not None:
+            await bot.session.close()
         if health_runner:
             await health_runner.cleanup()
         logger.info("Bot to'xtatildi.")

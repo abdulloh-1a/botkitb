@@ -120,20 +120,24 @@ git push origin main
 | `BOT_TOKEN` | @BotFather tokeni |
 | `SUPER_ADMIN_ID` | `8328359338` |
 | `DATABASE_URL` | 1-qadamda olingan PostgreSQL satri |
+| `ENABLE_HEALTH_SERVER` | `true` (qo'lda yaratgan xizmatda shart) |
 | `ENABLE_FILE_LOG` | `false` |
 | `LOG_LEVEL` | `INFO` |
 | `BROADCAST_DELAY` | `0.05` |
 | `PYTHONUNBUFFERED` | `1` |
 
-`ENABLE_HEALTH_SERVER` ni qo'shish **shart emas** — Render `PORT` ni bergani uchun
-`/health` server o'zi yoqiladi (faqat o'chirish uchun `false` qiling).
+Yangi kodda `ENABLE_HEALTH_SERVER=true` qo'shimcha kafolat hisoblanadi: Render `PORT`
+berganda server o'zi ham yoqiladi. Qo'lda yaratgan xizmatda bu qiymatni **qo'shing**.
 
-Logda shuni ko'rishingiz kerak:
+Logning birinchi qatorlari shunday bo'lishi shart:
 ```
+Bot versiyasi: 2026.11.25-2 | Render: True | Health: True | Port: 10000
 Health server ishga tushdi: 0.0.0.0:10000/health
 Ma'lumotlar bazasi tayyor: PostgreSQL (DATABASE_URL)
 Bot ishga tushdi...
 ```
+`Bot versiyasi` qatori eski kod ishlab turganini darhol ko'rsatadi: undagi versiya
+`2026.11.25-2` bo'lmasa, Render eski commitni ishga tushuribturibdi.
 
 ### 4. GitHub Actions keep-alive (uxlab qolmasligi uchun)
 
@@ -144,6 +148,15 @@ GitHub repo → **Settings → Secrets and variables → Actions → New reposit
 
 Keyin **Actions** → **Render keep-alive** → **Run workflow** → natija `HTTP 200` bo'lishi kerak.
 Shundan keyin har 5 daqiqada o'zi ishlaydi. **Deploy qilish shart emas.**
+
+**Avto-deploy ishlamasa** (GitHub push qilingan, lekin Render eski commitni olib turibdi):
+
+1. Render → xizmat → **Settings** → **Deploy Hooks** → **Create Deploy Hook**.
+2. Chiqqan `https://api.render.com/deploy/srv-...?key=...` URL ni nusxalang.
+3. GitHub → **Settings → Secrets and variables → Actions** → yangi sekret:
+   `RENDER_DEPLOY_HOOK_URL` = shu URL.
+4. Endi `main` ga har push `.github/workflows/trigger-deploy.yml` orqali darhol
+   yangi deploy boshlaydi (sekret yo'q bo'lsa workflow inert).
 
 ### 5. Tekshirish
 
@@ -170,9 +183,12 @@ tasdiqlang. Render'ni qayta deploy qilib, ma'lumot saqlanganligini tekshiring.
   yangi instans sog'lom deb topilib, eskisi o'chiriladi va conflict yo'qoladi.
 - `DATABASE_URL yo'q: ma'lumotlar vaqtinchalik SQLite faylida...` — `DATABASE_URL`
   kiritilmagan. Bepul Render'da arizalar restart'da yo'qoladi. 1-qadamga qayting.
-- `No open ports detected` — eski kod ishlab turibdi (yangi commit `03b2c50` dan keyin
-  health server `PORT` borligini o'zi aniqlaydi). Kod yangilangach yo'qoladi;
-  qo'lda yaratgan xizmatda `Health Check Path = /health` ekanligini tekshiring.
+- `No open ports detected` / `Port scan timeout reached` — demak, logdagi
+  `Bot versiyasi:` eski. Yangi kodda port darhol ochiladi. Eski logni qayta
+  o'qavermang: Render → **Manual Deploy → Deploy latest commit** bosing va logning
+  **eng birinchi qatoridagi commit hash** yangi ekanligini tekshiring.
+- `Received SIGTERM signal` + `Bot to'xtatildi.` — Render port ochilmagani uchun
+  instansni o'chirdi (yuqoridagi sabab). Yangi deploydan keyin chiqmaydi.
 - `PLACEHOLDER rejimi` — `BOT_TOKEN` yoki `SUPER_ADMIN_ID` to'ldirilmagan.
 
 ### Pullik alternativa (tashqi bazasiz)
