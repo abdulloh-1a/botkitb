@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 
 class PersistentStorage(BaseStorage):
     def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
-        if not IS_POSTGRES:
+        if IS_POSTGRES:
+            # PostgreSQL manzili URL — Path uni buzadi (`//` -> `/`).
+            self.path: str | Path = str(path)
+        else:
+            self.path = Path(path)
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     async def init(self) -> None:

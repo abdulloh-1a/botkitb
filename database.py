@@ -32,8 +32,12 @@ def _now() -> str:
 
 class Database:
     def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
-        if not IS_POSTGRES:
+        if IS_POSTGRES:
+            # URL ni Path ga aylantirmang: Path("postgresql://...") `//` ni yo'q qiladi
+            # va asyncpg "invalid DSN" xatosini beradi.
+            self.path: str | Path = str(path)
+        else:
+            self.path = Path(path)
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     async def init(self) -> None:

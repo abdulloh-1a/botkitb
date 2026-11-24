@@ -131,13 +131,13 @@ berganda server o'zi ham yoqiladi. Qo'lda yaratgan xizmatda bu qiymatni **qo'shi
 
 Logning birinchi qatorlari shunday bo'lishi shart:
 ```
-Bot versiyasi: 2026.11.25-2 | Render: True | Health: True | Port: 10000
+Bot versiyasi: 2026.11.25-3 | Render: True | Health: True | Port: 10000
 Health server ishga tushdi: 0.0.0.0:10000/health
 Ma'lumotlar bazasi tayyor: PostgreSQL (DATABASE_URL)
 Bot ishga tushdi...
 ```
 `Bot versiyasi` qatori eski kod ishlab turganini darhol ko'rsatadi: undagi versiya
-`2026.11.25-2` bo'lmasa, Render eski commitni ishga tushuribturibdi.
+`2026.11.25-3` bo'lmasa, Render eski commitni ishga tushuribturibdi.
 
 ### 4. GitHub Actions keep-alive (uxlab qolmasligi uchun)
 
