@@ -7,9 +7,10 @@ import logging
 from pathlib import Path
 from typing import Any, Mapping
 
-import aiosqlite
 from aiogram.fsm.state import State
 from aiogram.fsm.storage.base import BaseStorage, StorageKey
+
+from dbengine import IS_POSTGRES, connect
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +18,13 @@ logger = logging.getLogger(__name__)
 class PersistentStorage(BaseStorage):
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not IS_POSTGRES:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
     async def init(self) -> None:
-        async with aiosqlite.connect(self.path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
+        async with connect(self.path) as db:
+            if not IS_POSTGRES:
+                await db.execute("PRAGMA journal_mode=WAL")
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS fsm_states (
                        bot_id INTEGER NOT NULL,
@@ -41,7 +44,7 @@ class PersistentStorage(BaseStorage):
     async def set_state(self, key: StorageKey, state: str | State | None = None) -> None:
         value = state.state if isinstance(state, State) else state
         bot_id, chat_id, user_id = self._key(key)
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             await db.execute(
                 """INSERT INTO fsm_states (bot_id, chat_id, user_id, state)
                    VALUES (?, ?, ?, ?)
@@ -51,7 +54,7 @@ class PersistentStorage(BaseStorage):
             await db.commit()
 
     async def get_state(self, key: StorageKey) -> str | None:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 "SELECT state FROM fsm_states WHERE bot_id=? AND chat_id=? AND user_id=?",
                 self._key(key),
@@ -61,7 +64,7 @@ class PersistentStorage(BaseStorage):
 
     async def set_data(self, key: StorageKey, data: Mapping[str, Any]) -> None:
         bot_id, chat_id, user_id = self._key(key)
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             await db.execute(
                 """INSERT INTO fsm_states (bot_id, chat_id, user_id, data)
                    VALUES (?, ?, ?, ?)
@@ -71,7 +74,7 @@ class PersistentStorage(BaseStorage):
             await db.commit()
 
     async def get_data(self, key: StorageKey) -> dict[str, Any]:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 "SELECT data FROM fsm_states WHERE bot_id=? AND chat_id=? AND user_id=?",
                 self._key(key),

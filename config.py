@@ -32,10 +32,17 @@ def _get_bool(name: str, default: bool = False) -> bool:
 BOT_TOKEN: str = os.getenv("BOT_TOKEN", "").strip()
 SUPER_ADMIN_ID: int = _get_int("SUPER_ADMIN_ID", 123456789)
 DATABASE_PATH: Path = Path(os.getenv("DATABASE_PATH", str(BASE_DIR / "data" / "bot.db")))
+# Render bepul rejimida fayl tizimi vaqtinchalik. PostgreSQL ( Neon / Supabase )
+# ulanish satri berilsa, baza va FSM doimiy saqlanadi. Berilmasa SQLite ishlatiladi.
+DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 LOG_FILE: Path = Path(os.getenv("LOG_FILE", str(BASE_DIR / "bot.log")))
 # Render kabi platformalarda fayl tizimi vaqtinchalik — faqat stdout ga yozamiz.
 ENABLE_FILE_LOG: bool = _get_bool("ENABLE_FILE_LOG", True)
+# Render Web Service port ochishni talab qiladi. Bepul rejimda uxlab qolmasligi
+# uchun GitHub Actions har 5 daqiqada /health ni ping qiladi.
+ENABLE_HEALTH_SERVER: bool = _get_bool("ENABLE_HEALTH_SERVER", False)
+PORT: int = _get_int("PORT", 8080)
 BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "0.05"))
 
 if not BOT_TOKEN:

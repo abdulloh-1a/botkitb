@@ -70,47 +70,105 @@ git branch -M main
 git push -u origin main
 ```
 
-## Render'ga joylash (tavsiya etiladi)
+## Render'ga joylash — BEPUL rejim (to'liq ishlaydigan tartib)
 
-Loyihada `render.yaml` (Blueprint) tayyor. U botni **Background Worker** sifatida
-ishga tushuradi va `/data` papkasiga **doimiy disk** ulaydi, shuning uchun arizalar
-va FSM holatlari redeploy/restart'larda yo'qolmaydi.
+`render.yaml` tayyor: bot **Web Service** sifatida ishlaydi, lekin ichida kichik
+`/health` HTTP server ham ochadi — Render "No open ports" deb ogohlantirmaydi.
+Bepul rejim 15 daqiqa harakatsizlikdan keyin uxlab qolgani uchun
+`.github/workflows/keep-alive.yml` har 5 daqiqada o'sha `/health` ga so'rov yuboradi.
+**Ma'lumot yo'qolmasligi uchun tashqi PostgreSQL shart** (Render bepulida fayl tizimi
+vaqtinchalik, disk yo'q).
 
-1. Yuqoridagidek kodni GitHub'ga yuklang.
-2. [render.com](https://dashboard.render.com) → **New → Blueprint** → repositoriyani tanlang → **Apply**.
-3. Yaratilgan xizmatning **Environment** bo'limida ikkita maxfiy o'zgaruvchini to'ldiring:
-   - `BOT_TOKEN` — @BotFather dan olingan token
-   - `SUPER_ADMIN_ID` — masalan `8328359338`
-4. **Logs** bo'limida `Bot ishga tushdi` degan xabarni ko'ring.
-5. Telegramda botga yozib sinab ko'ring.
+### 1. Doimiy baza — Neon.tech (bepul)
 
-> ⚠️ Render'da bot ishga tushganda **mahalliy botni to'xtating** (`pkill -f "python bot.py"`),
-> aks holda bir token bilan ikki jarayon polling qilib, xatolik beradi.
+1. [neon.tech](https://neon.tech) → GitHub bilan ro'yxatdan o'ting → **New Project**.
+2. **Connection Details** bo'limidan `psql` / connection string ni oling:
+   ```
+   postgresql://neondb_owner:PAROL@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
+   ```
+3. Bu satrni Render'ga `DATABASE_URL` sifatida kiritasiz (3-qadam).
+   Kod `?sslmode=require` ni o'zi `ssl=True` ga aylantiradi.
+
+### 2. GitHub'ga yuklash
+
+```bash
+cd ~/Music/book_competition_bot
+git add .
+git commit -m "Render free: health server, PostgreSQL, keep-alive"
+git push origin main
+```
+
+`.env` va `data/` git'ga kirmaydi — token va ma'lumot xavfsiz.
+
+### 3. Render xizmati
+
+**New → Blueprint** → reponi tanlang → **Apply** (tavsiya etiladi), yoki qo'lda:
+
+| Sozlama | Qiymat |
+|---|---|
+| Service Type | **Web Service** |
+| Runtime | Python |
+| Plan | **Free** |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `python bot.py` |
+| Health Check Path | `/health` |
+
+**Environment** bo'limi:
+
+| Key | Value |
+|---|---|
+| `BOT_TOKEN` | @BotFather tokeni |
+| `SUPER_ADMIN_ID` | `8328359338` |
+| `DATABASE_URL` | 1-qadamda olingan PostgreSQL satri |
+| `ENABLE_HEALTH_SERVER` | `true` |
+| `ENABLE_FILE_LOG` | `false` |
+| `LOG_LEVEL` | `INFO` |
+| `BROADCAST_DELAY` | `0.05` |
+| `PYTHONUNBUFFERED` | `1` |
+
+Logda shuni ko'rishingiz kerak:
+```
+Health server ishga tushdi: 0.0.0.0:10000/health
+Ma'lumotlar bazasi tayyor: PostgreSQL (DATABASE_URL)
+Bot ishga tushdi...
+```
+
+### 4. GitHub Actions keep-alive (uxlab qolmasligi uchun)
+
+GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**:
+- **Name:** `RENDER_URL`
+- **Value:** Render bergan URL, masalan `https://book-competition-bot.onrender.com`
+  (oxiriga `/health` qo'shmang — workflow o'zi qo'shadi).
+
+Keyin **Actions** → **Render keep-alive** → **Run workflow** → natija `HTTP 200` bo'lishi kerak.
+Shundan keyin har 5 daqiqada o'zi ishlaydi. **Deploy qilish shart emas.**
+
+### 5. Tekshirish
+
+Telegramda `/start`, keyin `/admin` yozing. Biror ariza topshiring va admin tomonidan
+tasdiqlang. Render'ni qayta deploy qilib, ma'lumot saqlanganligini tekshiring.
+
+> ⚠️ Render ishga tushganda **mahalliy botni to'xtating**:
+> ```bash
+> pkill -f start_bot.sh; pkill -f "python bot.py"
+> ```
+> Bir token bilan ikki jarayon polling qilsa, xatolik beradi.
 
 ### Logdagi tez-tez uchraydigan xabarlar
 
-- `TelegramForbiddenError: Forbidden: bot was blocked by the user` — **biror foydalanuvchi
-  botni bloklagan**. Bot unga xabar yubora olmaydi, lekin ishlashda davom etadi (xato endi
-  `WARNING` sifatida yoziladi, traceback chiqmaydi). Hal qilish: Telegram'da bot bilan chatni
-  ochib, **Unblock / Blokdan chiqarish** tugmasini bosing va `/start` yuboring.
-  Super admin bloklagan bo'lsa, unga ariza bildirishnomalari ham kelmaydi.
-- `No open ports detected ... create a background worker instead` — xizmat **Web Service**
-  sifatida yaratilgan. Bot HTTP port ochmaydi, shuning uchun Render port qidiraveradi.
-  To'g'risi: **Background Worker** (Start Command yana `python bot.py`). Bot ishledi, lekin
-  port skanerlash ogohlantirishlari chiqavermasligi uchun xizmat turini almashtiring.
-- `PLACEHOLDER rejimi` — Render'da `BOT_TOKEN` yoki `SUPER_ADMIN_ID` to'ldirilmagan.
-  **Environment** bo'limida kiriting.
+- `TelegramForbiddenError: ... bot was blocked by the user` — biror foydalanuvchi botni
+  bloklagan. Endi traceback emas, oddiy `WARNING` chiqadi va bot ishlayveradi.
+  Telegram'da bot chati → **Unblock / Blokdan chiqarish** → `/start`.
+- `DATABASE_URL yo'q: ma'lumotlar vaqtinchalik SQLite faylida...` — `DATABASE_URL`
+  kiritilmagan. Bepul Render'da arizalar restart'da yo'qoladi. 1-qadamga qayting.
+- `No open ports detected` — `ENABLE_HEALTH_SERVER` yo'q yoki Health Check Path
+  noto'g'ri. `true` va `/health` qiling.
+- `PLACEHOLDER rejimi` — `BOT_TOKEN` yoki `SUPER_ADMIN_ID` to'ldirilmagan.
 
-> ❌ **Har 5 daqiqada qayta deploy qilish kerak emas.** Background Worker doimiy ishlaydi,
-> jarayon o'chib qolsa Render o'zi qayta ishga tushuradi. Bepul Web Service'ni uxlamaslik
-> uchun ping qilish ham SQLite ni saqlab qolmaydi — fayl tizimi vaqtinchalik. Faqat yuqoridagi
-> doimiy disk (`/data`) ma'lumotni saqlaydi. Har 5 daqiqadagi deploy esa botni qisqa vaqtga
-> to'xtatadi va pipeline daqiqalarini behuda sarflaydi.
+### Pullik alternativa (tashqi bazasiz)
 
-**Muhim:** Render'ning bepul rejimida Background Worker va doimiy disk yo'q; bepul
-Web Service 15 daqiqa harakatsizlikdan keyin uxlaydi va mahalliy fayllari (SQLite)
-o'chadi. Shuning uchun ishchi bot uchun eng kam **0.5c-512mb** rejasi + 1 GB disk
-kerak (taxminan $7/oy). Kod boshqa hostingga ham mos: faqat `DATABASE_PATH` ni
-doimiy papkaga yo'naltiring.
+Agar Neon ishlatishni istamasangiz: **Background Worker** + **1 GB disk**,
+`DATABASE_PATH=/data/bot.db`, plan `0.5c-512mb` (~$7/oy). Bu holda `DATABASE_URL`
+va keep-alive kerak emas — bot doimiy ishlaydi, baza diskda saqlanadi.
 
 Bot yaratuvchisi: **Xudoberdiyev Abdulloh**.

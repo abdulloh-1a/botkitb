@@ -1,7 +1,8 @@
-"""SQLite ma'lumotlar bazasi (async, aiosqlite).
+"""Ma'lumotlar bazasi: mahalliy SQLite yoki doimiy PostgreSQL.
 
-Baza birinchi ishga tushirishda avtomatik yaratiladi. barcha yozish operatsiyalari
-WAL rejimida bajariladi, shuning uchun bot qayta ishga tushganda ma'lumotlar saqlanadi.
+`DATABASE_URL` berilganda baza PostgreSQL'ga yoziladi (Render bepul rejimi uchun
+tavsiya etiladi — fayl tizimi vaqtinchalik bo'lgani uchun SQLite yo'qoladi).
+Birinchi ishga tushirishda jadvallar avtomatik yaratiladi.
 """
 
 from __future__ import annotations
@@ -12,9 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-import aiosqlite
-
 from config import STATUS_APPROVED, STATUS_PENDING, STATUS_REJECTED, SUPER_ADMIN_ID
+from dbengine import (
+    IS_POSTGRES,
+    Error,
+    IntegrityError,
+    Row,
+    connect,
+    location,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,44 +33,46 @@ def _now() -> str:
 class Database:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not IS_POSTGRES:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
     async def init(self) -> None:
-        async with aiosqlite.connect(self.path) as db:
-            await db.execute("PRAGMA journal_mode=WAL")
-            await db.execute("PRAGMA foreign_keys=ON")
-            # Eski sxemada user_id UNIQUE edi (bitta profil = bitta ariza).
-            # Yangi talab: bitta profildan 5 tagacha ariza. Jadvalni qayta quramiz.
-            cursor = await db.execute(
-                "SELECT sql FROM sqlite_master WHERE type='table' AND name='applications'"
-            )
-            table_sql = (await cursor.fetchone() or [None])[0]
-            if table_sql and "UNIQUE" in table_sql.upper():
-                logger.info("Eski applications jadvali yangilanadi (UNIQUE user_id olib tashlanadi)")
-                await db.executescript(
-                    """
-                    CREATE TABLE applications_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER NOT NULL,
-                        username TEXT,
-                        first_name TEXT NOT NULL,
-                        last_name TEXT NOT NULL,
-                        age INTEGER NOT NULL,
-                        grade INTEGER NOT NULL,
-                        gender TEXT NOT NULL,
-                        phone TEXT NOT NULL,
-                        status TEXT NOT NULL DEFAULT 'pending',
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL,
-                        reviewed_at TEXT,
-                        reviewed_by INTEGER,
-                        rejection_reason TEXT
-                    );
-                    INSERT INTO applications_new SELECT * FROM applications;
-                    DROP TABLE applications;
-                    ALTER TABLE applications_new RENAME TO applications;
-                    """
+        async with connect(self.path) as db:
+            if not IS_POSTGRES:
+                await db.execute("PRAGMA journal_mode=WAL")
+                await db.execute("PRAGMA foreign_keys=ON")
+                # Eski sxemada user_id UNIQUE edi (bitta profil = bitta ariza).
+                # Yangi talab: bitta profildan 5 tagacha ariza. Jadvalni qayta quramiz.
+                cursor = await db.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='applications'"
                 )
+                table_sql = (await cursor.fetchone() or [None])[0]
+                if table_sql and "UNIQUE" in table_sql.upper():
+                    logger.info("Eski applications jadvali yangilanadi (UNIQUE user_id olib tashlanadi)")
+                    await db.executescript(
+                        """
+                        CREATE TABLE applications_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            username TEXT,
+                            first_name TEXT NOT NULL,
+                            last_name TEXT NOT NULL,
+                            age INTEGER NOT NULL,
+                            grade INTEGER NOT NULL,
+                            gender TEXT NOT NULL,
+                            phone TEXT NOT NULL,
+                            status TEXT NOT NULL DEFAULT 'pending',
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            reviewed_at TEXT,
+                            reviewed_by INTEGER,
+                            rejection_reason TEXT
+                        );
+                        INSERT INTO applications_new SELECT * FROM applications;
+                        DROP TABLE applications;
+                        ALTER TABLE applications_new RENAME TO applications;
+                        """
+                    )
 
             await db.executescript(
                 """
@@ -114,13 +123,13 @@ class Database:
                 """
             )
             await db.commit()
-        logger.info("Ma'lumotlar bazasi tayyor: %s", self.path)
+        logger.info("Ma'lumotlar bazasi tayyor: %s", location(self.path))
 
     # --- Arizalar ----------------------------------------------------------
     async def add_application(self, data: dict[str, Any]) -> int | None:
         now = _now()
-        async with aiosqlite.connect(self.path) as db:
-            db.row_factory = aiosqlite.Row
+        async with connect(self.path) as db:
+            db.row_factory = Row
             try:
                 cursor = await db.execute(
                     """INSERT INTO applications
@@ -137,7 +146,7 @@ class Database:
                 )
                 await db.commit()
                 return int(cursor.lastrowid)
-            except aiosqlite.IntegrityError:
+            except IntegrityError:
                 logger.warning("Takroriy ariza: user_id=%s", data.get("user_id"))
                 return None
 
@@ -147,7 +156,7 @@ class Database:
         values = {key: data[key] for key in fields if key in data}
         values["updated_at"] = _now()
         set_clause = ", ".join(f"{key}=:{key}" for key in values)
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 f"""UPDATE applications SET {set_clause}, status=:status,
                     reviewed_at=NULL, reviewed_by=NULL, rejection_reason=NULL
@@ -163,7 +172,7 @@ class Database:
             return cursor.rowcount > 0
 
     async def update_phone(self, app_id: int, phone: str) -> bool:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 "UPDATE applications SET phone=?, updated_at=? WHERE id=?",
                 (phone, _now(), app_id),
@@ -232,7 +241,7 @@ class Database:
         reason: str | None = None,
     ) -> bool:
         """Faqat kutilayotgan ariza holati o'zgaradi (ikki marta tasdiqlash oldini oladi)."""
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 """UPDATE applications
                    SET status=?, reviewed_at=?, reviewed_by=?, rejection_reason=?, updated_at=?
@@ -252,7 +261,7 @@ class Database:
 
     async def get_recipients(self, status: str = STATUS_APPROVED) -> list[int]:
         rows = await self._fetch_all(
-            "SELECT DISTINCT user_id FROM applications WHERE status=? ORDER BY id", (status,)
+            "SELECT DISTINCT user_id FROM applications WHERE status=? ORDER BY user_id", (status,)
         )
         return [int(row["user_id"]) for row in rows]
 
@@ -283,7 +292,7 @@ class Database:
 
     # --- Adminlar ----------------------------------------------------------
     async def add_admin(self, user_id: int, username: str | None, added_by: int) -> bool:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             try:
                 await db.execute(
                     """INSERT INTO admins (user_id, username, added_by, added_at, is_active)
@@ -295,12 +304,12 @@ class Database:
                 )
                 await db.commit()
                 return True
-            except aiosqlite.Error as exc:
+            except Error as exc:
                 logger.error("Admin qo'shish xatoligi: %s", exc)
                 return False
 
     async def remove_admin(self, user_id: int) -> bool:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 "UPDATE admins SET is_active=0 WHERE user_id=? AND is_active=1", (user_id,)
             )
@@ -326,7 +335,7 @@ class Database:
         return await self._fetch_all(sql)
 
     async def set_broadcast_permission(self, user_id: int, enabled: bool) -> bool:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(
                 "UPDATE admins SET can_broadcast=? WHERE user_id=? AND is_active=1",
                 (int(enabled), user_id),
@@ -350,7 +359,7 @@ class Database:
 
     # --- Admin harakatlari logi -------------------------------------------
     async def log_action(self, admin_id: int, action: str, details: str = "") -> None:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             await db.execute(
                 "INSERT INTO admin_actions (admin_id, action, details, created_at) VALUES (?, ?, ?, ?)",
                 (admin_id, action, details, _now()),
@@ -364,7 +373,7 @@ class Database:
 
     # --- Sozlamalar (musobaqa sanasi/vaqti/joyi) --------------------------
     async def set_setting(self, key: str, value: str) -> None:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             await db.execute(
                 """INSERT INTO settings (key, value) VALUES (?, ?)
                    ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
@@ -382,21 +391,21 @@ class Database:
 
     # --- Umumiy yordamchilar ----------------------------------------------
     async def _fetch_one(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
-        async with aiosqlite.connect(self.path) as db:
-            db.row_factory = aiosqlite.Row
+        async with connect(self.path) as db:
+            db.row_factory = Row
             cursor = await db.execute(sql, params)
             row = await cursor.fetchone()
             return dict(row) if row else None
 
     async def _fetch_all(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
-        async with aiosqlite.connect(self.path) as db:
-            db.row_factory = aiosqlite.Row
+        async with connect(self.path) as db:
+            db.row_factory = Row
             cursor = await db.execute(sql, params)
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
     async def _fetch_scalar(self, sql: str, params: tuple[Any, ...] = ()) -> int:
-        async with aiosqlite.connect(self.path) as db:
+        async with connect(self.path) as db:
             cursor = await db.execute(sql, params)
             row = await cursor.fetchone()
             return int(row[0]) if row and row[0] is not None else 0

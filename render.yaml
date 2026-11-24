@@ -1,31 +1,32 @@
-# Render Blueprint: bot doimiy ishlaydigan Background Worker sifatida ishga tushadi.
-# GitHub repositoriyasiga push qilgandan keyin Render Dashboard -> New -> Blueprint
-# orqali shu faylni tanlang. BOT_TOKEN va SUPER_ADMIN_ID ni dashboardda kiritasiz.
+# Render FREE rejimi uchun Blueprint.
+# Bot Web Service sifatida ishlaydi, lekin ichida kichik /health server ochadi
+# (Render "No open ports" ogohlantirishini bermaydi). Uxlab qolmasligi uchun
+# .github/workflows/keep-alive.yml har 5 daqiqada /health ga so'rov yuboradi.
+# MA'LUMOTLAR DOIMIY BO'LISHI UCHUN DATABASE_URL (Neon/Supabase) shart.
 services:
-  - type: worker
+  - type: web
     name: book-competition-bot
     runtime: python
     region: frankfurt
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python bot.py
+    healthCheckPath: /health
     maxShutdownDelaySeconds: 60
     envVars:
       - key: BOT_TOKEN
-        sync: false # maxfiy: Render Dashboard da qo'lda kiritiladi
+        sync: false # maxfiy: Render Dashboard da kiritiladi
       - key: SUPER_ADMIN_ID
         sync: false # masalan: 8328359338
-      - key: DATABASE_PATH
-        value: /data/bot.db # doimiy diskka yoziladi
+      - key: DATABASE_URL
+        sync: false # postgresql://...?sslmode=require (Neon free)
+      - key: ENABLE_HEALTH_SERVER
+        value: "true"
       - key: ENABLE_FILE_LOG
-        value: "false" # loglar Render konsoliga (stdout) chiqadi
+        value: "false"
       - key: LOG_LEVEL
         value: INFO
       - key: BROADCAST_DELAY
         value: "0.05"
       - key: PYTHONUNBUFFERED
         value: "1"
-    disk:
-      name: book-competition-data
-      mountPath: /data
-      sizeGB: 1

@@ -12,6 +12,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -21,10 +22,13 @@ from aiogram.types import BotCommand, BotCommandScopeDefault, ErrorEvent
 from config import (
     BOT_TOKEN,
     DATABASE_PATH,
+    DATABASE_URL,
     ENABLE_FILE_LOG,
+    ENABLE_HEALTH_SERVER,
     LOG_FILE,
     LOG_LEVEL,
     PLACEHOLDER_MODE,
+    PORT,
 )
 from database import Database
 from handlers import admin, application, competition, fallback, start, statistics
@@ -76,6 +80,25 @@ async def handle_errors(event: ErrorEvent) -> bool:
     return True  # xatolik aiogram tomonidan qayta ko'tarilmaydi
 
 
+async def _health(_: web.Request) -> web.Response:
+    """Render Web Service port ochilganligini tekshiradi."""
+    return web.Response(text="OK", content_type="text/plain")
+
+
+async def start_health_server() -> web.AppRunner | None:
+    if not ENABLE_HEALTH_SERVER:
+        return None
+    app = web.Application()
+    app.router.add_get("/", _health)
+    app.router.add_get("/health", _health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    await site.start()
+    logger.info("Health server ishga tushdi: 0.0.0.0:%s/health", PORT)
+    return runner
+
+
 async def main() -> None:
     setup_logging()
     if PLACEHOLDER_MODE:
@@ -83,10 +106,17 @@ async def main() -> None:
             "PLACEHOLDER rejimi: .env faylida haqiqiy BOT_TOKEN va SUPER_ADMIN_ID ni "
             "sozlang. Aks holda bot Telegram ga ulanmaydi."
         )
+    if not DATABASE_URL and ENABLE_HEALTH_SERVER:
+        logger.warning(
+            "DATABASE_URL yo'q: ma'lumotlar vaqtinchalik SQLite faylida saqlanadi va "
+            "Render restart'da yo'qoladi. Doimiy PostgreSQL ulanishi uchun "
+            "DATABASE_URL ni Environment'ga qo'shing."
+        )
 
-    db = Database(DATABASE_PATH)
+    db_target = DATABASE_URL or DATABASE_PATH
+    db = Database(db_target)
     await db.init()
-    storage = PersistentStorage(DATABASE_PATH)
+    storage = PersistentStorage(db_target)
     await storage.init()
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -112,7 +142,8 @@ async def main() -> None:
         scope=BotCommandScopeDefault(),
     )
 
-    logger.info("Bot ishga tushdi. Baza: %s", DATABASE_PATH)
+    logger.info("Bot ishga tushdi. Baza: %s", db_target)
+    health_runner = await start_health_server()
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as exc:  # noqa: BLE001 - xatolik log faylga yoziladi
@@ -120,6 +151,8 @@ async def main() -> None:
         raise
     finally:
         await bot.session.close()
+        if health_runner:
+            await health_runner.cleanup()
         logger.info("Bot to'xtatildi.")
 
 
