@@ -33,6 +33,7 @@ from config import (
     PORT,
 )
 from database import Database
+from dbengine import location
 from handlers import admin, application, competition, fallback, start, statistics
 from storage import PersistentStorage
 
@@ -164,7 +165,8 @@ async def main() -> None:
             scope=BotCommandScopeDefault(),
         )
 
-        logger.info("Bot ishga tushdi. Baza: %s", db_target)
+        # PostgreSQL ulanish satrida parol bor — logga faqat xavfsiz ko'rinish yozamiz.
+        logger.info("Bot ishga tushdi. Baza: %s", location(db_target))
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except Exception as exc:  # noqa: BLE001 - xatolik log faylga yoziladi
         logger.exception("Bot ishlamay qoldi: %s", exc)

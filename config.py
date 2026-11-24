@@ -50,7 +50,7 @@ ENABLE_HEALTH_SERVER: bool = _get_bool("ENABLE_HEALTH_SERVER", IS_RENDER)
 
 # Logda qaysi kod ishlab turganini darhol ko'rish uchun versiya belgisi.
 # Render logida "Bot versiyasi: ..." qatori shu qiymatni ko'rsatadi.
-APP_VERSION = "2026.11.25-4"
+APP_VERSION = "2026.11.25-5"
 BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "0.05"))
 
 if not BOT_TOKEN:
