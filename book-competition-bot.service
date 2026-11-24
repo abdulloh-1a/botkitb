@@ -1,0 +1,18 @@
+[Unit]
+Description=10-maktab kitobxonlik musobaqasi Telegram boti
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=abdulloh
+WorkingDirectory=/home/abdulloh/Music/book_competition_bot
+Environment="PATH=/home/abdulloh/Music/book_competition_bot/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/abdulloh/Music/book_competition_bot/.venv/bin/python /home/abdulloh/Music/book_competition_bot/bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/abdulloh/Music/book_competition_bot/bot.log
+StandardError=append:/home/abdulloh/Music/book_competition_bot/bot.log
+
+[Install]
+WantedBy=default.target

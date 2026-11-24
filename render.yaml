@@ -1,0 +1,31 @@
+# Render Blueprint: bot doimiy ishlaydigan Background Worker sifatida ishga tushadi.
+# GitHub repositoriyasiga push qilgandan keyin Render Dashboard -> New -> Blueprint
+# orqali shu faylni tanlang. BOT_TOKEN va SUPER_ADMIN_ID ni dashboardda kiritasiz.
+services:
+  - type: worker
+    name: book-competition-bot
+    runtime: python
+    region: frankfurt
+    plan: 0.5c-512mb
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python bot.py
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: BOT_TOKEN
+        sync: false # maxfiy: Render Dashboard da qo'lda kiritiladi
+      - key: SUPER_ADMIN_ID
+        sync: false # masalan: 8328359338
+      - key: DATABASE_PATH
+        value: /data/bot.db # doimiy diskka yoziladi
+      - key: ENABLE_FILE_LOG
+        value: "false" # loglar Render konsoliga (stdout) chiqadi
+      - key: LOG_LEVEL
+        value: INFO
+      - key: BROADCAST_DELAY
+        value: "0.05"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    disk:
+      name: book-competition-data
+      mountPath: /data
+      sizeGB: 1
