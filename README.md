@@ -87,6 +87,12 @@ va FSM holatlari redeploy/restart'larda yo'qolmaydi.
 > ⚠️ Render'da bot ishga tushganda **mahalliy botni to'xtating** (`pkill -f "python bot.py"`),
 > aks holda bir token bilan ikki jarayon polling qilib, xatolik beradi.
 
+> ❌ **Har 5 daqiqada qayta deploy qilish kerak emas.** Background Worker doimiy ishlaydi,
+> jarayon o'chib qolsa Render o'zi qayta ishga tushuradi. Bepul Web Service'ni uxlamaslik
+> uchun ping qilish ham SQLite ni saqlab qolmaydi — fayl tizimi vaqtinchalik. Faqat yuqoridagi
+> doimiy disk (`/data`) ma'lumotni saqlaydi. Har 5 daqiqadagi deploy esa botni qisqa vaqtga
+> to'xtatadi va pipeline daqiqalarini behuda sarflaydi.
+
 **Muhim:** Render'ning bepul rejimida Background Worker va doimiy disk yo'q; bepul
 Web Service 15 daqiqa harakatsizlikdan keyin uxlaydi va mahalliy fayllari (SQLite)
 o'chadi. Shuning uchun ishchi bot uchun eng kam **0.5c-512mb** rejasi + 1 GB disk
