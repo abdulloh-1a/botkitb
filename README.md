@@ -120,11 +120,13 @@ git push origin main
 | `BOT_TOKEN` | @BotFather tokeni |
 | `SUPER_ADMIN_ID` | `8328359338` |
 | `DATABASE_URL` | 1-qadamda olingan PostgreSQL satri |
-| `ENABLE_HEALTH_SERVER` | `true` |
 | `ENABLE_FILE_LOG` | `false` |
 | `LOG_LEVEL` | `INFO` |
 | `BROADCAST_DELAY` | `0.05` |
 | `PYTHONUNBUFFERED` | `1` |
+
+`ENABLE_HEALTH_SERVER` ni qo'shish **shart emas** — Render `PORT` ni bergani uchun
+`/health` server o'zi yoqiladi (faqat o'chirish uchun `false` qiling).
 
 Logda shuni ko'rishingiz kerak:
 ```
@@ -163,11 +165,14 @@ tasdiqlang. Render'ni qayta deploy qilib, ma'lumot saqlanganligini tekshiring.
   polling qilayapti** (masalan, eski Render xizmati + yangisi, yoki mahalliy bot).
   Aiogram qayta urinadi, lekin sababni yo'q qilish kerak: Render Dashboard'da faqat **bitta**
   xizmat qoldiring, qolganini **Delete** qiling va mahalliy botni to'xtating.
-  Deploy paytida bir necha soniya davom etadigan conflict odatiy hol — o'zi tiklanadi.
+  **Ko'p uchraydigan holat:** yangi deploy port ochmagani uchun Render eski instansni
+  o'chirmaydi — ikkalasi polling qiladi. Health server yoqilgach (`PORT` borligida avtomatik)
+  yangi instans sog'lom deb topilib, eskisi o'chiriladi va conflict yo'qoladi.
 - `DATABASE_URL yo'q: ma'lumotlar vaqtinchalik SQLite faylida...` — `DATABASE_URL`
   kiritilmagan. Bepul Render'da arizalar restart'da yo'qoladi. 1-qadamga qayting.
-- `No open ports detected` — `ENABLE_HEALTH_SERVER` yo'q yoki Health Check Path
-  noto'g'ri. `true` va `/health` qiling.
+- `No open ports detected` — eski kod ishlab turibdi (yangi commit `03b2c50` dan keyin
+  health server `PORT` borligini o'zi aniqlaydi). Kod yangilangach yo'qoladi;
+  qo'lda yaratgan xizmatda `Health Check Path = /health` ekanligini tekshiring.
 - `PLACEHOLDER rejimi` — `BOT_TOKEN` yoki `SUPER_ADMIN_ID` to'ldirilmagan.
 
 ### Pullik alternativa (tashqi bazasiz)
